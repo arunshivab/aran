@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/Aran.Model/Aran.Model.csproj" />
+  <Project Path="src/Aran.Extraction/Aran.Extraction.csproj" />
+  <Project Path="tests/Aran.Extraction.Tests/Aran.Extraction.Tests.csproj" />
+  <Project Path="examples/Aran.ExtractionHarness/Aran.ExtractionHarness.csproj" />
+</Solution>

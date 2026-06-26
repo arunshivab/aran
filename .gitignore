@@ -1,0 +1,28 @@
+## .NET build output
+bin/
+obj/
+artifacts/
+[Dd]ebug/
+[Rr]elease/
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+## Test / coverage
+TestResults/
+*.trx
+coverage*.json
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Local NuGet packages: Chuvadi *.nupkg are vendored under localpackages/ and
+## committed, so clean clones and CI can restore the chuvadi-local feed.
+
+## Harness output
+*.svg

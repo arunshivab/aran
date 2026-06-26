@@ -1,0 +1,30 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.cs]
+# Namespaces and usings
+csharp_style_namespace_declarations = file_scoped:warning
+dotnet_diagnostic.IDE0005.severity = warning
+dotnet_sort_system_directives_first = true
+
+# Braces on every control-flow statement
+csharp_prefer_braces = true:warning
+dotnet_diagnostic.IDE0011.severity = warning
+
+# Prefer "?? throw" over explicit null-check-and-throw
+dotnet_diagnostic.IDE0270.severity = warning
+
+# Null-argument validation on public surface
+dotnet_diagnostic.CA1062.severity = warning
+
+# One member per line / object initializer formatting is covered by dotnet format

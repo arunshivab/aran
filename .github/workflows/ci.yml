@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.301'
+
+      # NOTE: restore needs the Chuvadi 3.15.0 .nupkg files on the
+      # `chuvadi-local` feed. Either commit them under localpackages/ or
+      # publish them to a private feed (GitHub Packages) and update nuget.config.
+      - name: Build
+        run: dotnet build Aran.slnx -c Release
+
+      - name: Test
+        run: dotnet test tests/Aran.Extraction.Tests/Aran.Extraction.Tests.csproj -c Release --no-build
+
+      - name: Format check
+        run: dotnet format Aran.slnx --verify-no-changes

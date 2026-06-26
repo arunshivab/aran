@@ -1,0 +1,9 @@
+Aran
+Copyright (c) 2026 Arun Shiva B. All rights reserved.
+
+This software and its accompanying source code are proprietary and
+confidential. No part of this software may be copied, reproduced,
+modified, distributed, published, or transmitted in any form or by any
+means without the prior written permission of the copyright holder.
+
+Unauthorized use is strictly prohibited.
