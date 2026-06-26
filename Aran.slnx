@@ -1,6 +1,10 @@
 <Solution>
   <Project Path="src/Aran.Model/Aran.Model.csproj" />
   <Project Path="src/Aran.Extraction/Aran.Extraction.csproj" />
+  <Project Path="src/Aran.Machines/Aran.Machines.csproj" />
+  <Project Path="src/Aran.Engines.Linac/Aran.Engines.Linac.csproj" />
   <Project Path="tests/Aran.Extraction.Tests/Aran.Extraction.Tests.csproj" />
+  <Project Path="tests/Aran.Engines.Linac.Tests/Aran.Engines.Linac.Tests.csproj" />
   <Project Path="examples/Aran.ExtractionHarness/Aran.ExtractionHarness.csproj" />
+  <Project Path="examples/Aran.LinacHarness/Aran.LinacHarness.csproj" />
 </Solution>
