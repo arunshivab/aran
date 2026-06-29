@@ -10,17 +10,23 @@
 
 @if (!Session.RunCompleted)
 {
-    <div class="alert alert-warning">Run step not completed. <a href="/run">Go to Run ›</a></div>
+    <div class="alert alert-warning">
+        Run step not completed. <a href="/run">Go to Run ›</a>
+    </div>
     return;
 }
 
 @if (!string.IsNullOrEmpty(_error))
 {
-    <div class="alert alert-danger">@_error</div>
+    <div class="alert alert-danger">
+        <strong>Report generation failed:</strong> @_error
+        <div class="small mt-1 text-muted">Check that the Run step completed successfully.</div>
+    </div>
 }
 
 @if (!_generated)
 {
+    <p class="text-muted">Click Generate to build both PDF reports from the calculation results.</p>
     <button class="btn btn-primary mb-3" @onclick="Generate" disabled="@_generating">
         @if (_generating)
         {
@@ -35,13 +41,14 @@
 }
 else
 {
-    <div class="list-group mb-3" style="max-width:480px">
+    <div class="list-group mb-3" style="max-width:520px">
         <div class="list-group-item d-flex justify-content-between align-items-center">
             <div>
                 <strong>NCRP 151 Report</strong>
                 <div class="small text-muted">@SizeLabel(Session.NcrpReportBytes)</div>
             </div>
-            <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadPdf(Session.NcrpReportBytes, NcrpFileName)"
+            <button class="btn btn-sm btn-outline-primary"
+                    @onclick="() => DownloadPdf(Session.NcrpReportBytes, NcrpFileName)"
                     disabled="@(Session.NcrpReportBytes is null)">
                 &#11123; Download
             </button>
@@ -51,7 +58,8 @@ else
                 <strong>AERB LINAC Report</strong>
                 <div class="small text-muted">@SizeLabel(Session.AerbLinacReportBytes)</div>
             </div>
-            <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadPdf(Session.AerbLinacReportBytes, AerbLinacFileName)"
+            <button class="btn btn-sm btn-outline-primary"
+                    @onclick="() => DownloadPdf(Session.AerbLinacReportBytes, AerbLinacFileName)"
                     disabled="@(Session.AerbLinacReportBytes is null)">
                 &#11123; Download
             </button>
@@ -63,7 +71,8 @@ else
                     <strong>AERB NM Report</strong>
                     <div class="small text-muted">@SizeLabel(Session.AerbNmReportBytes)</div>
                 </div>
-                <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadPdf(Session.AerbNmReportBytes, AerbNmFileName)">
+                <button class="btn btn-sm btn-outline-primary"
+                        @onclick="() => DownloadPdf(Session.AerbNmReportBytes, AerbNmFileName)">
                     &#11123; Download
                 </button>
             </div>
@@ -71,8 +80,9 @@ else
     </div>
 
     <div class="d-flex gap-2">
-        <a href="/run" class="btn btn-outline-secondary">‹ Back</a>
+        <a href="/run" class="btn btn-outline-secondary">‹ Back to Run</a>
         <button class="btn btn-outline-danger" @onclick="Restart">&#8635; New calculation</button>
+        <button class="btn btn-outline-secondary" @onclick="Regenerate">&#8635; Regenerate</button>
     </div>
 }
 
@@ -81,18 +91,19 @@ else
     private bool _generated;
     private string? _error;
 
-    private string NcrpFileName => SafeFileName("NCRP151");
+    private string NcrpFileName    => SafeFileName("NCRP151");
     private string AerbLinacFileName => SafeFileName("AERB_LINAC");
-    private string AerbNmFileName => SafeFileName("AERB_NM");
+    private string AerbNmFileName  => SafeFileName("AERB_NM");
 
     private string SafeFileName(string tag) =>
         System.Text.RegularExpressions.Regex.Replace(
-            Session.FacilityName + "_" + tag + "_" +
+            (Session.FacilityName.Length > 0 ? Session.FacilityName : "Facility") +
+            "_" + tag + "_" +
             Session.PreparedDate.ToString("yyyyMMdd") + ".pdf",
             @"[^\w\-.]", "_");
 
     private static string SizeLabel(byte[]? b) =>
-        b is null ? "not generated" : $"{b.Length / 1024} KB";
+        b is null ? "❌ not generated" : $"✓ {b.Length / 1024} KB";
 
     private async Task Generate()
     {
@@ -105,12 +116,23 @@ else
         }
         catch (Exception ex)
         {
-            _error = "Report generation failed: " + ex.Message;
+            _error = ex.Message;
+            // Still show the download panel so user sees which PDFs succeeded
+            _generated = true;
         }
         finally
         {
             _generating = false;
         }
+    }
+
+    private void Regenerate()
+    {
+        Session.NcrpReportBytes = null;
+        Session.AerbLinacReportBytes = null;
+        Session.AerbNmReportBytes = null;
+        _generated = false;
+        _error = null;
     }
 
     private async Task DownloadPdf(byte[]? pdf, string fileName)
