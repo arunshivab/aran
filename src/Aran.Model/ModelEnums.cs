@@ -106,8 +106,23 @@ public enum MachineType
     /// <summary>Helical tomotherapy unit.</summary>
     LinacTomo,
 
+    /// <summary>Robotic radiosurgery system (for example CyberKnife).</summary>
+    CyberKnife,
+
+    /// <summary>Cobalt-60 teletherapy unit.</summary>
+    Telecobalt,
+
+    /// <summary>Gamma Knife radiosurgery system (OEM dose map required).</summary>
+    GammaKnife,
+
     /// <summary>High dose-rate brachytherapy afterloader.</summary>
     HdrBrachy,
+
+    /// <summary>Low dose-rate Cs-137 manual brachytherapy.</summary>
+    LdrBrachyCs137,
+
+    /// <summary>Conventional radiographic simulator.</summary>
+    Simulator,
 
     /// <summary>Computed-tomography simulator.</summary>
     CtSimulator,

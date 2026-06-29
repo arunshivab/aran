@@ -52,6 +52,12 @@ public sealed record Ncrp151Standard : ShieldingStandard
             return new CitedValue(1.0, "NCRP 151 §2.3 (U = 1 for secondary radiation)");
         }
 
+        // Isotropic sources: U = 1 for all walls
+        if (MachineTypeHelper.IsIsotropicSource(machine.Type))
+        {
+            return new CitedValue(1.0, "NCRP 151: isotropic source; U = 1 for all barriers");
+        }
+
         return new CitedValue(designerUseFactor, "designer-specified use factor (NCRP 151 §2.2.1)");
     }
 
@@ -116,17 +122,30 @@ public sealed record AerbStandard : ShieldingStandard
     public override CitedValue UseFactor(MachineModel machine, BarrierRole role, double designerUseFactor)
     {
         ArgumentNullException.ThrowIfNull(machine);
+
+        // Isotropic sources: U = 1 for all barriers (brachy, gamma knife)
+        if (MachineTypeHelper.IsIsotropicSource(machine.Type))
+        {
+            return new CitedValue(1.0, "AERB RT guidance §B.6-7 (brachytherapy/isotropic: U = 1 all barriers)");
+        }
+
         if (role == BarrierRole.Secondary)
         {
             return new CitedValue(1.0, "AERB RT guidance §B (U = 1 for secondary barriers)");
         }
 
-        if (machine.Type == MachineType.LinacHalcyon)
+        switch (machine.Type)
         {
-            return new CitedValue(0.12, "AERB RT guidance §B.4 (O-ring primary U = 0.12)");
+            case MachineType.LinacHalcyon:
+                return new CitedValue(0.12, "AERB RT guidance §B.4 (O-ring primary U = 0.12)");
+            case MachineType.LinacTomo:
+                return new CitedValue(0.1, "AERB RT guidance §B.2.3 (tomotherapy primary U = 0.1, post-stopper)");
+            case MachineType.CyberKnife:
+                return new CitedValue(0.05, "AERB RT guidance §B.3.2 (CyberKnife primary U = 0.05)");
+            default:
+                // Telecobalt, standard LINAC, TrueBeam
+                return new CitedValue(0.25, "AERB RT guidance §B.1.2 (primary U = 0.25)");
         }
-
-        return new CitedValue(0.25, "AERB RT guidance §B.1.2 (linac primary U = 0.25)");
     }
 
     /// <inheritdoc />
@@ -137,35 +156,67 @@ public sealed record AerbStandard : ShieldingStandard
         ArgumentNullException.ThrowIfNull(inputWorkloads);
         List<string> notes = new List<string>();
 
-        if (machine.Type == MachineType.LinacHalcyon)
+        switch (machine.Type)
         {
-            return new WorkloadValue(1000.0, 3100.0, "AERB RT guidance §B.4 (O-ring primary 1e5, leakage 3.1e5 cGy week^-1)", notes);
-        }
+            case MachineType.LinacHalcyon:
+                return new WorkloadValue(1000.0, 3100.0,
+                    "AERB RT guidance §B.4 (O-ring primary 1e5, leakage 3.1e5 cGy week^-1)", notes);
 
-        double primary;
-        if (mode.NominalMv == 6)
-        {
-            primary = 1000.0;
-        }
-        else if (mode.NominalMv == 15)
-        {
-            primary = 500.0;
-        }
-        else
-        {
-            primary = SuppliedPrimary(inputWorkloads, mode);
-            notes.Add("AERB does not tabulate a workload for " + mode.NominalMv + " MV; using supplied workload.");
-        }
+            case MachineType.LinacTomo:
+                return new WorkloadValue(440.0, 7000.0,
+                    "AERB RT guidance §B.2.2 (tomotherapy primary 4.4e4, leakage 7e5 cGy week^-1)", notes);
 
-        double leakage = 1.0e-3 * primary;
-        return new WorkloadValue(primary, leakage, "AERB RT guidance §B.1.1 (typical linac workload); leakage = 0.1 % of workload", notes);
+            case MachineType.CyberKnife:
+                return new WorkloadValue(640.0, 9600.0,
+                    "AERB RT guidance §B.3.1 (CyberKnife primary 6.4e4, leakage 9.6e5 cGy week^-1)", notes);
+
+            case MachineType.Telecobalt:
+                return new WorkloadValue(1500.0, 1.5,
+                    "AERB RT guidance §B.1.1(a) (telecobalt 1.5e5 cGy week^-1; leakage 0.1%)", notes);
+
+            default:
+                // Standard LINAC / TrueBeam
+                double primary;
+                if (mode.NominalMv == 6)
+                {
+                    primary = 1000.0;
+                }
+                else if (mode.NominalMv == 15)
+                {
+                    primary = 500.0;
+                }
+                else
+                {
+                    primary = SuppliedPrimary(inputWorkloads, mode);
+                    notes.Add("AERB does not tabulate a workload for " + mode.NominalMv + " MV; using supplied workload.");
+                }
+
+                double leakage = 1.0e-3 * primary;
+                return new WorkloadValue(primary, leakage,
+                    "AERB RT guidance §B.1.1 (typical linac workload); leakage = 0.1 % of workload", notes);
+        }
     }
 
     /// <inheritdoc />
     public override CitedValue BeamStopperTransmission(MachineModel machine)
     {
         ArgumentNullException.ThrowIfNull(machine);
-        return new CitedValue(1.0, "AERB workloads already account for the beam stopper");
+        if (machine.Type == MachineType.LinacTomo)
+        {
+            if (machine.BeamStopperTransmission is double t)
+            {
+                return new CitedValue(t, "tomotherapy beam-stopper transmission (OEM-supplied)");
+            }
+
+            return new CitedValue(1.0, "tomotherapy beam-stopper transmission not set; physicist must supply OEM value");
+        }
+
+        if (machine.BeamStopperTransmission is double bt)
+        {
+            return new CitedValue(bt, "machine beam-stopper transmission");
+        }
+
+        return new CitedValue(1.0, "AERB workloads already account for the beam stopper (or no stopper present)");
     }
 }
 
@@ -177,4 +228,13 @@ public static class Standards
 
     /// <summary>The AERB radiotherapy guidance standard (unconfirmed until verified by a physicist).</summary>
     public static AerbStandard Aerb { get; } = new AerbStandard();
+}
+
+/// <summary>Shared helper — identifies machines that emit isotropic radiation (U = 1 all walls).</summary>
+internal static class MachineTypeHelper
+{
+    internal static bool IsIsotropicSource(MachineType type) =>
+        type == MachineType.HdrBrachy ||
+        type == MachineType.LdrBrachyCs137 ||
+        type == MachineType.GammaKnife;
 }
