@@ -15,52 +15,52 @@
 
 <p class="text-muted mb-2">
     Extracted <strong>@Session.ExtractionResult.Model.Barriers.Count barriers</strong>
-    and <strong>@Session.ExtractionResult.Model.Rooms.Count rooms</strong>.
+    and <strong>@Session.ExtractionResult.Model.Rooms.Count rooms</strong>
+    (showing walls ≥ @MinDisplayLenMm mm).
     Review the SVG overlay, then confirm to continue.
 </p>
 
 <div class="row g-3 mb-3">
     <div class="col-lg-8">
-        <div class="border rounded bg-white p-1" style="overflow:auto; height:520px">
+        <div class="border rounded bg-white" style="overflow:auto; height:520px">
             @if (_viewBox is not null)
             {
                 <svg viewBox="@_viewBox" width="@_svgW" height="@_svgH"
                      xmlns="http://www.w3.org/2000/svg"
                      style="display:block; max-width:100%; height:auto">
 
-                    @* Barriers (blue lines) *@
-                    @foreach (var b in Session.ExtractionResult.Model.Barriers)
+                    @* Walls — blue, filtered to significant length only *@
+                    @foreach (var b in _displayBarriers)
                     {
-                        @if (b.CentrelineMm.Points.Count >= 2)
-                        {
-                            <polyline points="@PolyPts(b.CentrelineMm.Points)"
-                                      fill="none" stroke="#1565C0"
-                                      stroke-width="@_sw"
-                                      title="@b.Id" />
-                        }
+                        <polyline points="@PolyPts(b.CentrelineMm.Points)"
+                                  fill="none"
+                                  stroke="#1565C0"
+                                  stroke-width="@_sw.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)"
+                                  stroke-linecap="round">
+                            <title>@b.Id — @b.ThicknessMm.ToString("0") mm thick</title>
+                        </polyline>
                     }
 
-                    @* Rooms (green polygon) *@
+                    @* Rooms — green fill *@
                     @foreach (var r in Session.ExtractionResult.Model.Rooms)
                     {
                         @if (r.BoundaryMm.Vertices.Count >= 3)
                         {
                             <polygon points="@PolyPts2(r.BoundaryMm.Vertices)"
-                                     fill="rgba(100,200,100,0.2)"
+                                     fill="rgba(46,125,50,0.15)"
                                      stroke="#2e7d32"
-                                     stroke-width="@_sw" />
+                                     stroke-width="@(_sw * 1.5).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)" />
                         }
                     }
 
-                    @* Isocentre cross *@
+                    @* Isocentre crosshair (red circle + cross) *@
                     @if (_isoX.HasValue)
                     {
-                        <line x1="@(_isoX - _cs)" y1="@_isoY" x2="@(_isoX + _cs)" y2="@_isoY"
-                              stroke="red" stroke-width="@_sw" />
-                        <line x1="@_isoX" y1="@(_isoY - _cs)" x2="@_isoX" y2="@(_isoY + _cs)"
-                              stroke="red" stroke-width="@_sw" />
-                        <circle cx="@_isoX" cy="@_isoY" r="@_cs"
-                                fill="none" stroke="red" stroke-width="@_sw" />
+                        <circle cx="@_isoX!.Value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)"
+                                cy="@_isoY!.Value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)"
+                                r="@(_cs).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)"
+                                fill="rgba(229,57,53,0.2)" stroke="#e53935"
+                                stroke-width="@_sw.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)" />
                     }
                 </svg>
             }
@@ -68,6 +68,10 @@
             {
                 <div class="text-muted p-3">No geometry to display.</div>
             }
+        </div>
+        <div class="mt-1 small text-muted">
+            Showing @_displayBarriers.Count of @Session.ExtractionResult.Model.Barriers.Count barriers
+            (filtered short segments &lt; @MinDisplayLenMm mm).
         </div>
     </div>
 
@@ -98,12 +102,17 @@
 </div>
 
 @code {
+    // Only display barriers whose centreline length is at least this many mm.
+    // Short segments (< 500 mm) are dimension tick-marks, not structural walls.
+    private const double MinDisplayLenMm = 500.0;
+
     private string? _viewBox;
     private string _svgW = "800";
     private string _svgH = "600";
-    private double _sw = 100;   // stroke-width in mm units
-    private double _cs = 300;   // crosshair size in mm units
+    private double _sw = 50;
+    private double _cs = 200;
     private double? _isoX, _isoY;
+    private List<Aran.Model.Barrier> _displayBarriers = new();
 
     protected override void OnInitialized()
     {
@@ -113,13 +122,20 @@
 
     private void BuildSvgData()
     {
-        var barriers = Session.ExtractionResult!.Model.Barriers;
-        if (barriers.Count == 0) return;
+        var allBarriers = Session.ExtractionResult!.Model.Barriers;
+        if (allBarriers.Count == 0) return;
+
+        // Filter to significant barriers only for display
+        _displayBarriers = allBarriers
+            .Where(b => b.CentrelineMm.Points.Count >= 2 && BarrierLengthMm(b) >= MinDisplayLenMm)
+            .ToList();
+
+        // Use filtered set for viewBox; fall back to all if none pass filter
+        var bboxSource = _displayBarriers.Count > 0 ? _displayBarriers : allBarriers.ToList();
 
         double minX = double.MaxValue, minY = double.MaxValue;
         double maxX = double.MinValue, maxY = double.MinValue;
-
-        foreach (var b in barriers)
+        foreach (var b in bboxSource)
         {
             foreach (var p in b.CentrelineMm.Points)
             {
@@ -134,9 +150,8 @@
         double rangeY = maxY - minY;
         if (rangeX < 1 || rangeY < 1) return;
 
-        // 5% padding
-        double padX = rangeX * 0.05;
-        double padY = rangeY * 0.05;
+        double padX = rangeX * 0.06;
+        double padY = rangeY * 0.06;
         double vx = minX - padX;
         double vy = minY - padY;
         double vw = rangeX + 2 * padX;
@@ -144,43 +159,57 @@
 
         _viewBox = $"{vx:0.#} {vy:0.#} {vw:0.#} {vh:0.#}";
 
-        // Scale stroke width to be ~0.3% of the larger dimension
-        _sw = Math.Max(vw, vh) * 0.003;
-        _cs = _sw * 6;
+        // Stroke width = 0.4% of larger dimension, crosshair = 1.5× stroke
+        _sw = Math.Max(vw, vh) * 0.004;
+        _cs = _sw * 1.5;
 
-        // Aspect-ratio-aware SVG size (max 800px wide)
+        // Aspect-aware SVG pixel size
         double aspect = vw / vh;
         if (aspect >= 1)
         {
-            _svgW = "800";
-            _svgH = ((int)(800 / aspect)).ToString();
+            _svgW = "100%";
+            _svgH = ((int)(500.0 / aspect)).ToString();
         }
         else
         {
-            _svgH = "600";
-            _svgW = ((int)(600 * aspect)).ToString();
+            _svgH = "500";
+            _svgW = ((int)(500.0 * aspect)).ToString();
         }
 
-        // Isocentre: centroid of all barrier midpoints as a proxy
-        double sx = 0, sy = 0, n = 0;
-        foreach (var b in barriers)
+        // Isocentre = centroid of display barriers
+        if (_displayBarriers.Count > 0)
         {
-            if (b.CentrelineMm.Points.Count >= 2)
+            double sx = 0, sy = 0, n = 0;
+            foreach (var b in _displayBarriers)
             {
                 var pts = b.CentrelineMm.Points;
-                sx += (pts[0].X + pts[pts.Count - 1].X) / 2;
-                sy += (pts[0].Y + pts[pts.Count - 1].Y) / 2;
+                sx += (pts[0].X + pts[pts.Count - 1].X) / 2.0;
+                sy += (pts[0].Y + pts[pts.Count - 1].Y) / 2.0;
                 n++;
             }
+            _isoX = sx / n;
+            _isoY = sy / n;
         }
-        if (n > 0) { _isoX = sx / n; _isoY = sy / n; }
+    }
+
+    private static double BarrierLengthMm(Aran.Model.Barrier b)
+    {
+        var pts = b.CentrelineMm.Points;
+        if (pts.Count < 2) return 0;
+        double dx = pts[pts.Count - 1].X - pts[0].X;
+        double dy = pts[pts.Count - 1].Y - pts[0].Y;
+        return Math.Sqrt(dx * dx + dy * dy);
     }
 
     private static string PolyPts(IReadOnlyList<Aran.Model.PointMm> pts) =>
-        string.Join(" ", pts.Select(p => $"{p.X:0.#},{p.Y:0.#}"));
+        string.Join(" ", pts.Select(p =>
+            p.X.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "," +
+            p.Y.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)));
 
     private static string PolyPts2(IReadOnlyList<Aran.Model.PointMm> pts) =>
-        string.Join(" ", pts.Select(p => $"{p.X:0.#},{p.Y:0.#}"));
+        string.Join(" ", pts.Select(p =>
+            p.X.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "," +
+            p.Y.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)));
 
     private void Confirm()
     {
