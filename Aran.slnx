@@ -10,9 +10,11 @@
   <Project Path="src/Aran.Engines.NuclearMedicine/Aran.Engines.NuclearMedicine.csproj" />
   <Project Path="src/Aran.Engines.Simulator/Aran.Engines.Simulator.csproj" />
   <Project Path="src/Aran.Report.Linac/Aran.Report.Linac.csproj" />
+  <Project Path="src/Aran.Report.NuclearMedicine/Aran.Report.NuclearMedicine.csproj" />
   <Project Path="tests/Aran.Engines.Brachy.Tests/Aran.Engines.Brachy.Tests.csproj" />
   <Project Path="tests/Aran.Engines.NuclearMedicine.Tests/Aran.Engines.NuclearMedicine.Tests.csproj" />
   <Project Path="tests/Aran.Engines.Simulator.Tests/Aran.Engines.Simulator.Tests.csproj" />
   <Project Path="tests/Aran.Report.Linac.Tests/Aran.Report.Linac.Tests.csproj" />
+  <Project Path="tests/Aran.Report.NuclearMedicine.Tests/Aran.Report.NuclearMedicine.Tests.csproj" />
   <Project Path="examples/Aran.LinacHarness/Aran.LinacHarness.csproj" />
 </Solution>
