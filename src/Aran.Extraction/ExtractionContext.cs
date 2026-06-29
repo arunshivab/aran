@@ -26,6 +26,8 @@ public sealed class ExtractionContext
         Texts = Array.Empty<TextRun>();
         Model = new ModelBuilder();
         Diagnostics = new List<Diagnostic>();
+        WallLoops = Array.Empty<WallLoop>();
+        RoomPolygons = Array.Empty<RoomPolygon>();
     }
 
     /// <summary>The open source document.</summary>
@@ -51,6 +53,24 @@ public sealed class ExtractionContext
 
     /// <summary>The scale calibration, populated by the calibration stage.</summary>
     public ScaleCalibration? Scale { get; set; }
+
+    /// <summary>
+    /// Closed and open wall loops produced by stage 5 (wall body recovery).
+    /// Empty until stage 5 completes.
+    /// </summary>
+    public IReadOnlyList<WallLoop> WallLoops { get; set; }
+
+    /// <summary>
+    /// Room polygons with label and function assignments, produced by stages 6 and 7.
+    /// Empty until stage 7 completes.
+    /// </summary>
+    public IReadOnlyList<RoomPolygon> RoomPolygons { get; set; }
+
+    /// <summary>
+    /// The extracted maze geometry produced by stage 8, or null when no maze
+    /// was identified. Converted to MazeRun by the orchestration layer.
+    /// </summary>
+    public ExtractedMazeGeometry? MazeGeometry { get; set; }
 
     /// <summary>The accumulating model.</summary>
     public ModelBuilder Model { get; }

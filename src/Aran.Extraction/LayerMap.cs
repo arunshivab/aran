@@ -38,6 +38,7 @@ public sealed class LayerMap
             new KeyValuePair<string, LayerRole>("rcc wall", LayerRole.Wall),
             new KeyValuePair<string, LayerRole>("rcc-wall", LayerRole.Wall),
             new KeyValuePair<string, LayerRole>("ar-wall", LayerRole.Wall),
+            new KeyValuePair<string, LayerRole>("a-wall", LayerRole.Wall),
             new KeyValuePair<string, LayerRole>("wall", LayerRole.Wall),
             new KeyValuePair<string, LayerRole>("door", LayerRole.Door),
             new KeyValuePair<string, LayerRole>("anno-dim", LayerRole.Dimension),
@@ -49,12 +50,52 @@ public sealed class LayerMap
         return new LayerMap(patterns);
     }
 
+    /// <summary>
+    /// Creates a layer profile that also treats the bare layer "0" (the AutoCAD default
+    /// layer that carries primary building outlines in many exported PDFs) as wall geometry.
+    /// </summary>
+    /// <returns>A configured <see cref="LayerMap"/> instance with layer "0" as Wall.</returns>
+    public static LayerMap CreateWithLayer0AsWall()
+    {
+        List<KeyValuePair<string, LayerRole>> patterns = new List<KeyValuePair<string, LayerRole>>
+        {
+            new KeyValuePair<string, LayerRole>("rcc wall", LayerRole.Wall),
+            new KeyValuePair<string, LayerRole>("rcc-wall", LayerRole.Wall),
+            new KeyValuePair<string, LayerRole>("ar-wall", LayerRole.Wall),
+            new KeyValuePair<string, LayerRole>("a-wall", LayerRole.Wall),
+            new KeyValuePair<string, LayerRole>("wall", LayerRole.Wall),
+            new KeyValuePair<string, LayerRole>("door", LayerRole.Door),
+            new KeyValuePair<string, LayerRole>("anno-dim", LayerRole.Dimension),
+            new KeyValuePair<string, LayerRole>("dim", LayerRole.Dimension),
+            new KeyValuePair<string, LayerRole>("anno-mark", LayerRole.Annotation),
+            new KeyValuePair<string, LayerRole>("mark", LayerRole.Annotation),
+            new KeyValuePair<string, LayerRole>("text", LayerRole.Label),
+        };
+        return new LayerMap(patterns, includeLayer0AsWall: true);
+    }
+
+    private readonly bool _includeLayer0AsWall;
+
+    /// <summary>Initialises a new instance with explicit layer-0 wall inclusion.</summary>
+    private LayerMap(IReadOnlyList<KeyValuePair<string, LayerRole>> patterns, bool includeLayer0AsWall)
+    {
+        ArgumentNullException.ThrowIfNull(patterns);
+        _patterns = patterns;
+        _includeLayer0AsWall = includeLayer0AsWall;
+    }
+
     /// <summary>Classifies a single layer name.</summary>
     /// <param name="layerName">The layer name to classify.</param>
     /// <returns>The role matched, or <see cref="LayerRole.Unknown"/>.</returns>
     public LayerRole Classify(string layerName)
     {
         ArgumentNullException.ThrowIfNull(layerName);
+        if (_includeLayer0AsWall &&
+            string.Equals(layerName, "0", StringComparison.Ordinal))
+        {
+            return LayerRole.Wall;
+        }
+
         string lower = layerName.ToLowerInvariant();
         foreach (KeyValuePair<string, LayerRole> pattern in _patterns)
         {
