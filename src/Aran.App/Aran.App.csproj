@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Aran.App</RootNamespace>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aran.Engines.Linac\Aran.Engines.Linac.csproj" />
+    <ProjectReference Include="..\Aran.Engines.Brachy\Aran.Engines.Brachy.csproj" />
+    <ProjectReference Include="..\Aran.Engines.NuclearMedicine\Aran.Engines.NuclearMedicine.csproj" />
+    <ProjectReference Include="..\Aran.Engines.Simulator\Aran.Engines.Simulator.csproj" />
+    <ProjectReference Include="..\Aran.Extraction\Aran.Extraction.csproj" />
+    <ProjectReference Include="..\Aran.Machines\Aran.Machines.csproj" />
+    <ProjectReference Include="..\Aran.Model\Aran.Model.csproj" />
+    <ProjectReference Include="..\Aran.Report.Linac\Aran.Report.Linac.csproj" />
+    <ProjectReference Include="..\Aran.Report.NuclearMedicine\Aran.Report.NuclearMedicine.csproj" />
+  </ItemGroup>
+
+</Project>

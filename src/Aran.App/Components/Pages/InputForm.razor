@@ -1,0 +1,229 @@
+@page "/input"
+@rendermode InteractiveServer
+@inject AppSession Session
+@inject NavigationManager Nav
+@using Aran.Machines
+
+<PageTitle>Input — Aran</PageTitle>
+
+<h2>③ Shielding Input</h2>
+
+@if (!Session.CanvasConfirmed)
+{
+    <div class="alert alert-warning">Canvas step not completed. <a href="/canvas">Go to Canvas ›</a></div>
+    return;
+}
+
+<div class="row g-4">
+
+    <!-- Facility -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Facility Details</div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <label class="form-label small">Facility name</label>
+                    <input class="form-control form-control-sm" @bind="Session.FacilityName" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Address</label>
+                    <input class="form-control form-control-sm" @bind="Session.FacilityAddress" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Floor</label>
+                    <input class="form-control form-control-sm" @bind="Session.FacilityFloor" placeholder="e.g. Basement" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Drawing reference</label>
+                    <input class="form-control form-control-sm" @bind="Session.DrawingReference" placeholder="e.g. R0 — 16.10.2025" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Prepared by</label>
+                    <input class="form-control form-control-sm" @bind="Session.PreparedBy" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">eLORA RP ID</label>
+                    <input class="form-control form-control-sm" @bind="Session.EloraRpId" placeholder="RP-XXXXX" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Date</label>
+                    <input type="date" class="form-control form-control-sm"
+                           value="@Session.PreparedDate.ToString("yyyy-MM-dd")"
+                           @onchange="OnDateChange" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Machine + Workloads -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Machine &amp; Workloads</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label small">Machine</label>
+                    <select class="form-select form-select-sm" @bind="Session.MachineName" @bind:after="OnMachineChanged">
+                        <option value="">— select —</option>
+                        @foreach (var m in MachineCatalog.All)
+                        {
+                            <option value="@m.Name">@m.Name (@m.Type)</option>
+                        }
+                    </select>
+                </div>
+
+                @if (_machine is not null)
+                {
+                    <p class="small text-muted mb-2">Workload in cGy/wk at 1 m (primary). Leave 0 to use AERB defaults.</p>
+                    @foreach (var mode in _machine.Modes)
+                    {
+                        <div class="input-group input-group-sm mb-2">
+                            <span class="input-group-text" style="min-width:80px">@mode.Name</span>
+                            <input type="number" class="form-control" min="0" step="100"
+                                   value="@WorkloadFor(mode.Name)"
+                                   @onchange="e => SetWorkload(mode.Name, e)" />
+                            <span class="input-group-text">cGy/wk</span>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Maze geometry -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header fw-semibold">Maze &amp; Door Geometry
+                <span class="text-muted fw-normal small ms-2">(pre-filled from extraction where available)</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    @foreach (var field in MazeFields())
+                    {
+                        <div class="col-sm-6 col-md-4 col-lg-3">
+                            <label class="form-label small">@field.Label</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control" step="0.01"
+                                       value="@field.Get(Session.MazeRun)"
+                                       @onchange="e => field.Set(Session.MazeRun, e)" />
+                                <span class="input-group-text">@field.Unit</span>
+                            </div>
+                        </div>
+                    }
+                    <div class="col-sm-6 col-md-4 col-lg-3 d-flex align-items-end">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="hasNeutron"
+                                   @bind="Session.MazeRun.HasNeutron" />
+                            <label class="form-check-label small" for="hasNeutron">Include neutron (≥10 MV)</label>
+                        </div>
+                    </div>
+                </div>
+
+                @if (Session.MazeRun.HasNeutron)
+                {
+                    <hr class="my-2" />
+                    <div class="row g-2">
+                        @foreach (var field in NeutronFields())
+                        {
+                            <div class="col-sm-6 col-md-4 col-lg-3">
+                                <label class="form-label small">@field.Label</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" class="form-control" step="0.01"
+                                           value="@field.Get(Session.MazeRun)"
+                                           @onchange="e => field.Set(Session.MazeRun, e)" />
+                                    <span class="input-group-text">@field.Unit</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mt-3">
+    <button class="btn btn-primary" @onclick="Submit" disabled="@(!CanSubmit)">
+        Save &amp; continue ›
+    </button>
+    <a href="/canvas" class="btn btn-outline-secondary">‹ Back</a>
+</div>
+
+@code {
+    private Aran.Machines.MachineModel? _machine;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(Session.MachineName))
+            _machine = MachineCatalog.FindByName(Session.MachineName);
+    }
+
+    private void OnMachineChanged()
+    {
+        _machine = MachineCatalog.FindByName(Session.MachineName);
+        if (_machine is not null)
+        {
+            Session.Workloads = new Dictionary<string, double>();
+            foreach (var mode in _machine.Modes)
+                Session.Workloads[mode.Name] = 0;
+        }
+    }
+
+    private double WorkloadFor(string name) =>
+        Session.Workloads.TryGetValue(name, out double v) ? v : 0;
+
+    private void SetWorkload(string name, ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), out double v))
+            Session.Workloads[name] = v;
+    }
+
+    private void OnDateChange(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParse(e.Value?.ToString(), out DateOnly d))
+            Session.PreparedDate = d;
+    }
+
+    private bool CanSubmit =>
+        !string.IsNullOrWhiteSpace(Session.FacilityName) &&
+        !string.IsNullOrWhiteSpace(Session.MachineName);
+
+    private void Submit()
+    {
+        Session.InputConfirmed = true;
+        Nav.NavigateTo("/run");
+    }
+
+    private record MazeField(string Label, string Unit,
+        Func<MazeRunFormValues, double> Get,
+        Action<MazeRunFormValues, ChangeEventArgs> Set);
+
+    private static List<MazeField> MazeFields() => new()
+    {
+        new("dh — ISO to Wall G ⊥", "m", f => f.DhM,     (f,e) => f.DhM     = Parse(e)),
+        new("dr — scatter to centreline", "m", f => f.DrM, (f,e) => f.DrM    = Parse(e)),
+        new("dz — inner to outer door", "m", f => f.DzM,  (f,e) => f.DzM     = Parse(e)),
+        new("dsec — ISO to Wall G ∥", "m", f => f.DsecM,  (f,e) => f.DsecM  = Parse(e)),
+        new("dzz — A1 to outer door", "m", f => f.DzzM,   (f,e) => f.DzzM   = Parse(e)),
+        new("dsca — ISO to patient", "m", f => f.DscaM,   (f,e) => f.DscaM  = Parse(e)),
+        new("dL — ISO to door (oblique)", "m", f => f.DlM,(f,e) => f.DlM    = Parse(e)),
+        new("A0 — primary beam area @ Wall G", "m²", f => f.A0M2, (f,e) => f.A0M2 = Parse(e)),
+        new("A1 — Wall G area visible from door", "m²", f => f.A1M2, (f,e) => f.A1M2 = Parse(e)),
+        new("Az — inner maze cross-section", "m²", f => f.AzM2, (f,e) => f.AzM2 = Parse(e)),
+        new("B — inner wall transmission", "", f => f.InnerWallTransmissionB, (f,e) => f.InnerWallTransmissionB = Parse(e)),
+        new("θ — patient scatter angle", "°", f => f.ScatterAngleDeg, (f,e) => f.ScatterAngleDeg = Parse(e)),
+        new("F — field area @ 1 m", "cm²", f => f.FieldAreaCm2, (f,e) => f.FieldAreaCm2 = Parse(e)),
+        new("f — patient transmission", "", f => f.PatientTransmissionF, (f,e) => f.PatientTransmissionF = Parse(e)),
+    };
+
+    private static List<MazeField> NeutronFields() => new()
+    {
+        new("d1 — ISO to inner maze point", "m", f => f.D1M,      (f,e) => f.D1M         = Parse(e)),
+        new("d2 — inner point to door", "m", f => f.D2M,          (f,e) => f.D2M         = Parse(e)),
+        new("Sr — room surface area", "m²", f => f.RoomSurfaceM2, (f,e) => f.RoomSurfaceM2 = Parse(e)),
+        new("S0 — inner maze opening", "m²", f => f.S0M2,         (f,e) => f.S0M2        = Parse(e)),
+        new("S1 — maze cross-section", "m²", f => f.S1M2,         (f,e) => f.S1M2        = Parse(e)),
+    };
+
+    private static double Parse(ChangeEventArgs e) =>
+        double.TryParse(e.Value?.ToString(), out double v) ? v : 0;
+}

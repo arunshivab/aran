@@ -1,0 +1,163 @@
+@page "/"
+@rendermode InteractiveServer
+@inject AppSession Session
+@inject NavigationManager Nav
+
+<PageTitle>Upload — Aran</PageTitle>
+
+<h2>① Upload Layout PDF</h2>
+<p class="text-muted">Upload the plan PDF (required) and section PDF (optional). Maximum 10 MB each.</p>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<div class="card mb-3" style="max-width:600px">
+    <div class="card-body">
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Plan PDF <span class="text-danger">*</span></label>
+            <InputFile OnChange="OnPlanSelected" accept=".pdf" class="form-control" />
+            @if (Session.PlanFileName is not null)
+            {
+                <div class="form-text text-success">&#10003; @Session.PlanFileName</div>
+            }
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Section PDF <span class="text-muted">(optional)</span></label>
+            <InputFile OnChange="OnSectionSelected" accept=".pdf" class="form-control" />
+            @if (_sectionName is not null)
+            {
+                <div class="form-text text-success">&#10003; @_sectionName</div>
+            }
+        </div>
+
+        <button class="btn btn-primary" @onclick="RunExtraction" disabled="@(_running || Session.PlanPdfBytes is null)">
+            @if (_running)
+            {
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <span>Extracting…</span>
+            }
+            else
+            {
+                <span>Extract &amp; Continue ›</span>
+            }
+        </button>
+    </div>
+</div>
+
+@if (Session.ExtractionResult is not null)
+{
+    <div class="card border-success" style="max-width:600px">
+        <div class="card-header bg-success text-white">Extraction complete</div>
+        <div class="card-body small">
+            @foreach (var d in Session.ExtractionResult.Diagnostics)
+            {
+                <div class="@DiagClass(d.Severity)">[@d.Stage] @d.Message</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _running;
+    private string? _error;
+    private string? _sectionName;
+
+    private const long MaxBytes = 10L * 1024 * 1024;
+
+    private async Task OnPlanSelected(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        IBrowserFile file = e.File;
+        if (file.Size > MaxBytes) { _error = "Plan PDF exceeds 10 MB limit."; return; }
+        using MemoryStream ms = new MemoryStream();
+        await file.OpenReadStream(MaxBytes).CopyToAsync(ms);
+        Session.PlanPdfBytes = ms.ToArray();
+        Session.PlanFileName = file.Name;
+        Session.ExtractionResult = null;
+        Session.CanvasConfirmed = false;
+    }
+
+    private async Task OnSectionSelected(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        IBrowserFile file = e.File;
+        if (file.Size > MaxBytes) { _error = "Section PDF exceeds 10 MB limit."; return; }
+        using MemoryStream ms = new MemoryStream();
+        await file.OpenReadStream(MaxBytes).CopyToAsync(ms);
+        Session.SectionPdfBytes = ms.ToArray();
+        _sectionName = file.Name;
+    }
+
+    private async Task RunExtraction()
+    {
+        if (Session.PlanPdfBytes is null) return;
+        _running = true;
+        _error = null;
+        try
+        {
+            await Task.Run(() =>
+            {
+                using MemoryStream ms = new MemoryStream(Session.PlanPdfBytes);
+                Aran.Extraction.ShieldingExtractor extractor = new Aran.Extraction.ShieldingExtractor(
+                    Aran.Extraction.ExtractionPipeline.CreateDefault(),
+                    Aran.Extraction.LayerMap.CreateWithLayer0AsWall());
+                using Chuvadi.Pdf.Documents.PdfDocument doc = Chuvadi.Pdf.Documents.PdfDocument.Open(ms);
+                Session.ExtractionResult = extractor.Extract(doc, 0);
+                // Seed the confirmed model from extraction
+                Session.ConfirmedModel = Session.ExtractionResult.Model;
+                // Pre-populate maze geometry if stage 8 found it
+                if (Session.ExtractionResult is not null)
+                {
+                    var ctx = GetContext(Session.PlanPdfBytes);
+                    if (ctx?.MazeGeometry is { } mg)
+                    {
+                        Session.MazeRun.DhM = mg.DhMm / 1000.0;
+                        Session.MazeRun.DzM = mg.DzMm / 1000.0;
+                        Session.MazeRun.DrM = mg.DrMm / 1000.0;
+                        Session.MazeRun.DsecM = mg.DsecMm / 1000.0;
+                        Session.MazeRun.DzzM = mg.DzzMm / 1000.0;
+                        Session.MazeRun.DscaM = mg.DscaMm / 1000.0;
+                        Session.MazeRun.DlM = mg.DlMm / 1000.0;
+                        Session.MazeRun.A0M2 = mg.A0M2;
+                        Session.MazeRun.A1M2 = mg.A1M2;
+                        Session.MazeRun.AzM2 = mg.AzM2;
+                    }
+                }
+            });
+            Nav.NavigateTo("/canvas");
+        }
+        catch (Exception ex)
+        {
+            _error = "Extraction failed: " + ex.Message;
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+
+    // Re-run the context to get MazeGeometry (not stored in ExtractionResult)
+    private static Aran.Extraction.ExtractionContext? GetContext(byte[] planBytes)
+    {
+        try
+        {
+            using MemoryStream ms = new MemoryStream(planBytes);
+            using Chuvadi.Pdf.Documents.PdfDocument doc = Chuvadi.Pdf.Documents.PdfDocument.Open(ms);
+            Aran.Extraction.ExtractionContext ctx = new Aran.Extraction.ExtractionContext(
+                doc, 0, Aran.Extraction.LayerMap.CreateWithLayer0AsWall());
+            Aran.Extraction.ExtractionPipeline.CreateDefault().Run(ctx);
+            return ctx;
+        }
+        catch { return null; }
+    }
+
+    private static string DiagClass(Aran.Extraction.DiagnosticSeverity s) => s switch
+    {
+        Aran.Extraction.DiagnosticSeverity.Warning => "text-warning",
+        Aran.Extraction.DiagnosticSeverity.Error   => "text-danger",
+        _                                           => "text-muted",
+    };
+}

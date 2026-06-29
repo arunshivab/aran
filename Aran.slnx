@@ -16,5 +16,6 @@
   <Project Path="tests/Aran.Engines.Simulator.Tests/Aran.Engines.Simulator.Tests.csproj" />
   <Project Path="tests/Aran.Report.Linac.Tests/Aran.Report.Linac.Tests.csproj" />
   <Project Path="tests/Aran.Report.NuclearMedicine.Tests/Aran.Report.NuclearMedicine.Tests.csproj" />
+  <Project Path="src/Aran.App/Aran.App.csproj" />
   <Project Path="examples/Aran.LinacHarness/Aran.LinacHarness.csproj" />
 </Solution>
