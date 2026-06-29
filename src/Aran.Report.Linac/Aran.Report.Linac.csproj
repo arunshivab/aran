@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Aran.Report.Linac</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aran.Engines.Linac\Aran.Engines.Linac.csproj" />
+    <ProjectReference Include="..\Aran.Machines\Aran.Machines.csproj" />
+    <ProjectReference Include="..\Aran.Model\Aran.Model.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Chuvadi.Pdf.Authoring" Version="3.15.0" />
+  </ItemGroup>
+
+</Project>

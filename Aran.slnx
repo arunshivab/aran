@@ -6,5 +6,7 @@
   <Project Path="tests/Aran.Extraction.Tests/Aran.Extraction.Tests.csproj" />
   <Project Path="tests/Aran.Engines.Linac.Tests/Aran.Engines.Linac.Tests.csproj" />
   <Project Path="examples/Aran.ExtractionHarness/Aran.ExtractionHarness.csproj" />
+  <Project Path="src/Aran.Report.Linac/Aran.Report.Linac.csproj" />
+  <Project Path="tests/Aran.Report.Linac.Tests/Aran.Report.Linac.Tests.csproj" />
   <Project Path="examples/Aran.LinacHarness/Aran.LinacHarness.csproj" />
 </Solution>
