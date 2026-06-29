@@ -84,6 +84,15 @@
                             <span class="input-group-text">cGy/wk</span>
                         </div>
                     }
+
+                    @if (_neutronWarning)
+                    {
+                        <div class="alert alert-warning small mt-2 mb-0 py-2">
+                            ⚠️ This machine has beam modes ≥ 10 MV. Neutron geometry is
+                            <strong>required</strong> for the door calculation. Enable neutron
+                            below and fill in the maze neutron distances.
+                        </div>
+                    }
                 }
             </div>
         </div>
@@ -92,7 +101,8 @@
     <!-- Maze geometry -->
     <div class="col-12">
         <div class="card">
-            <div class="card-header fw-semibold">Maze &amp; Door Geometry
+            <div class="card-header fw-semibold">
+                Maze &amp; Door Geometry
                 <span class="text-muted fw-normal small ms-2">(pre-filled from extraction where available)</span>
             </div>
             <div class="card-body">
@@ -103,7 +113,7 @@
                             <label class="form-label small">@field.Label</label>
                             <div class="input-group input-group-sm">
                                 <input type="number" class="form-control" step="0.01"
-                                       value="@field.Get(Session.MazeRun)"
+                                       value="@field.Get(Session.MazeRun).ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)"
                                        @onchange="e => field.Set(Session.MazeRun, e)" />
                                 <span class="input-group-text">@field.Unit</span>
                             </div>
@@ -113,7 +123,9 @@
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="hasNeutron"
                                    @bind="Session.MazeRun.HasNeutron" />
-                            <label class="form-check-label small" for="hasNeutron">Include neutron (≥10 MV)</label>
+                            <label class="form-check-label small" for="hasNeutron">
+                                Include neutron (required for ≥ 10 MV)
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -128,7 +140,7 @@
                                 <label class="form-label small">@field.Label</label>
                                 <div class="input-group input-group-sm">
                                     <input type="number" class="form-control" step="0.01"
-                                           value="@field.Get(Session.MazeRun)"
+                                           value="@field.Get(Session.MazeRun).ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)"
                                            @onchange="e => field.Set(Session.MazeRun, e)" />
                                     <span class="input-group-text">@field.Unit</span>
                                 </div>
@@ -146,15 +158,23 @@
         Save &amp; continue ›
     </button>
     <a href="/canvas" class="btn btn-outline-secondary">‹ Back</a>
+    @if (!CanSubmit)
+    {
+        <span class="text-muted small align-self-center">Select a machine and enter a facility name to continue.</span>
+    }
 </div>
 
 @code {
-    private Aran.Machines.MachineModel? _machine;
+    private MachineModel? _machine;
+    private bool _neutronWarning;
 
     protected override void OnInitialized()
     {
         if (!string.IsNullOrEmpty(Session.MachineName))
+        {
             _machine = MachineCatalog.FindByName(Session.MachineName);
+            UpdateNeutronWarning();
+        }
     }
 
     private void OnMachineChanged()
@@ -165,7 +185,20 @@
             Session.Workloads = new Dictionary<string, double>();
             foreach (var mode in _machine.Modes)
                 Session.Workloads[mode.Name] = 0;
+
+            // Auto-enable neutron when machine has ≥10 MV modes
+            bool needsNeutron = _machine.Modes.Any(m => m.NominalMv >= 10 && !m.IsCo60);
+            if (needsNeutron)
+                Session.MazeRun.HasNeutron = true;
         }
+        UpdateNeutronWarning();
+    }
+
+    private void UpdateNeutronWarning()
+    {
+        _neutronWarning = _machine is not null &&
+            _machine.Modes.Any(m => m.NominalMv >= 10 && !m.IsCo60) &&
+            !Session.MazeRun.HasNeutron;
     }
 
     private double WorkloadFor(string name) =>
@@ -173,7 +206,9 @@
 
     private void SetWorkload(string name, ChangeEventArgs e)
     {
-        if (double.TryParse(e.Value?.ToString(), out double v))
+        if (double.TryParse(e.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out double v))
             Session.Workloads[name] = v;
     }
 
@@ -200,15 +235,15 @@
     private static List<MazeField> MazeFields() => new()
     {
         new("dh — ISO to Wall G ⊥", "m", f => f.DhM,     (f,e) => f.DhM     = Parse(e)),
-        new("dr — scatter to centreline", "m", f => f.DrM, (f,e) => f.DrM    = Parse(e)),
+        new("dr — scatter to centreline", "m", f => f.DrM,(f,e) => f.DrM     = Parse(e)),
         new("dz — inner to outer door", "m", f => f.DzM,  (f,e) => f.DzM     = Parse(e)),
         new("dsec — ISO to Wall G ∥", "m", f => f.DsecM,  (f,e) => f.DsecM  = Parse(e)),
         new("dzz — A1 to outer door", "m", f => f.DzzM,   (f,e) => f.DzzM   = Parse(e)),
         new("dsca — ISO to patient", "m", f => f.DscaM,   (f,e) => f.DscaM  = Parse(e)),
         new("dL — ISO to door (oblique)", "m", f => f.DlM,(f,e) => f.DlM    = Parse(e)),
-        new("A0 — primary beam area @ Wall G", "m²", f => f.A0M2, (f,e) => f.A0M2 = Parse(e)),
-        new("A1 — Wall G area visible from door", "m²", f => f.A1M2, (f,e) => f.A1M2 = Parse(e)),
-        new("Az — inner maze cross-section", "m²", f => f.AzM2, (f,e) => f.AzM2 = Parse(e)),
+        new("A0 — primary beam area", "m²", f => f.A0M2,  (f,e) => f.A0M2   = Parse(e)),
+        new("A1 — Wall G area from door", "m²", f => f.A1M2,(f,e) => f.A1M2 = Parse(e)),
+        new("Az — inner maze cross-section", "m²", f => f.AzM2,(f,e) => f.AzM2 = Parse(e)),
         new("B — inner wall transmission", "", f => f.InnerWallTransmissionB, (f,e) => f.InnerWallTransmissionB = Parse(e)),
         new("θ — patient scatter angle", "°", f => f.ScatterAngleDeg, (f,e) => f.ScatterAngleDeg = Parse(e)),
         new("F — field area @ 1 m", "cm²", f => f.FieldAreaCm2, (f,e) => f.FieldAreaCm2 = Parse(e)),
@@ -217,13 +252,15 @@
 
     private static List<MazeField> NeutronFields() => new()
     {
-        new("d1 — ISO to inner maze point", "m", f => f.D1M,      (f,e) => f.D1M         = Parse(e)),
-        new("d2 — inner point to door", "m", f => f.D2M,          (f,e) => f.D2M         = Parse(e)),
-        new("Sr — room surface area", "m²", f => f.RoomSurfaceM2, (f,e) => f.RoomSurfaceM2 = Parse(e)),
-        new("S0 — inner maze opening", "m²", f => f.S0M2,         (f,e) => f.S0M2        = Parse(e)),
-        new("S1 — maze cross-section", "m²", f => f.S1M2,         (f,e) => f.S1M2        = Parse(e)),
+        new("d1 — ISO to inner maze", "m", f => f.D1M,         (f,e) => f.D1M          = Parse(e)),
+        new("d2 — inner point to door", "m", f => f.D2M,       (f,e) => f.D2M          = Parse(e)),
+        new("Sr — room surface area", "m²", f => f.RoomSurfaceM2,(f,e) => f.RoomSurfaceM2 = Parse(e)),
+        new("S0 — inner maze opening", "m²", f => f.S0M2,      (f,e) => f.S0M2         = Parse(e)),
+        new("S1 — maze cross-section", "m²", f => f.S1M2,      (f,e) => f.S1M2         = Parse(e)),
     };
 
     private static double Parse(ChangeEventArgs e) =>
-        double.TryParse(e.Value?.ToString(), out double v) ? v : 0;
+        double.TryParse(e.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out double v) ? v : 0;
 }
