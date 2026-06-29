@@ -1,0 +1,159 @@
+@page "/canvas"
+@rendermode InteractiveServer
+@inject AppSession Session
+@inject NavigationManager Nav
+
+<PageTitle>Canvas — Aran</PageTitle>
+
+<h2>② Geometry Canvas</h2>
+
+@if (Session.ExtractionResult is null)
+{
+    <div class="alert alert-warning">No extraction result yet. <a href="/">Go to Upload ›</a></div>
+    return;
+}
+
+<p class="text-muted mb-2">
+    Extracted <strong>@Session.ExtractionResult.Model.Barriers.Count barriers</strong>
+    and <strong>@Session.ExtractionResult.Model.Rooms.Count rooms</strong>.
+    Review the SVG overlay, then confirm to continue.
+</p>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-8">
+        <div class="border rounded bg-light p-2" style="overflow:auto; height:520px">
+            <svg viewBox="@_viewBox" width="100%" height="100%"
+                 style="cursor:crosshair; font-family:sans-serif; font-size:8px">
+
+                @* Wall loops (grey) *@
+                @foreach (var loop in _loops)
+                {
+                    <polyline points="@loop" fill="none" stroke="#888" stroke-width="0.8" />
+                }
+
+                @* Barriers (blue = secondary, red = primary) *@
+                @foreach (var b in Session.ExtractionResult.Model.Barriers)
+                {
+                    @if (b.CentrelineMm.Points.Count >= 2)
+                    {
+                        <polyline points="@PolylinePoints(b.CentrelineMm.Points)"
+                                  fill="none" stroke="#1565C0" stroke-width="2"
+                                  title="@b.Id @b.ThicknessMm mm" />
+                        @((MarkupString)($"<text x=\"{MidX(b.CentrelineMm.Points):0.#}\" y=\"{MidY(b.CentrelineMm.Points):0.#}\" fill=\"#1565C0\" font-size=\"6\">{b.Id} {(int)b.ThicknessMm}mm</text>"))
+                    }
+                }
+
+                @* Rooms (light fill + label) *@
+                @foreach (var r in Session.ExtractionResult.Model.Rooms)
+                {
+                    @if (r.BoundaryMm.Vertices.Count >= 3)
+                    {
+                        <polygon points="@PolygonPoints(r.BoundaryMm.Vertices)"
+                                 fill="rgba(100,200,100,0.15)" stroke="#2e7d32" stroke-width="1" />
+                        @((MarkupString)($"<text x=\"{CentX(r.BoundaryMm.Vertices):0.#}\" y=\"{CentY(r.BoundaryMm.Vertices):0.#}\" fill=\"#1b5e20\" font-size=\"7\" text-anchor=\"middle\">{r.SuggestedFunction}</text>"))
+                    }
+                }
+
+                @* Isocentre marker *@
+                @if (_isoX.HasValue)
+                {
+                    <circle cx="@_isoX" cy="@_isoY" r="6" fill="red" opacity="0.7" />
+                    @((MarkupString)($"<text x=\"{_isoX:0.#}\" y=\"{_isoY - 8:0.#}\" fill=\"red\" font-size=\"7\" text-anchor=\"middle\">ISO</text>"))
+                }
+            </svg>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Extraction Summary</div>
+            <div class="card-body small overflow-auto">
+                @foreach (var d in Session.ExtractionResult.Diagnostics)
+                {
+                    <div class="@DiagClass(d.Severity) mb-1">
+                        <strong>[@d.Stage]</strong> @d.Message
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-2 align-items-center">
+    <button class="btn btn-success" @onclick="Confirm">
+        Confirm geometry &amp; continue ›
+    </button>
+    <a href="/" class="btn btn-outline-secondary">‹ Re-upload</a>
+    @if (Session.CanvasConfirmed)
+    {
+        <span class="text-success">&#10003; Confirmed</span>
+    }
+</div>
+
+@code {
+    private string _viewBox = "0 0 1000 800";
+    private List<string> _loops = new();
+    private double? _isoX, _isoY;
+
+    protected override void OnInitialized()
+    {
+        if (Session.ExtractionResult is null) return;
+        BuildSvgData();
+    }
+
+    private void BuildSvgData()
+    {
+        var barriers = Session.ExtractionResult!.Model.Barriers;
+        if (barriers.Count == 0) return;
+
+        // Compute bounds from barrier centrelines
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var b in barriers)
+        {
+            foreach (var p in b.CentrelineMm.Points)
+            {
+                if (p.X < minX) minX = p.X; if (p.X > maxX) maxX = p.X;
+                if (p.Y < minY) minY = p.Y; if (p.Y > maxY) maxY = p.Y;
+            }
+        }
+
+        double pad = 500;
+        _viewBox = $"{minX - pad} {minY - pad} {maxX - minX + 2 * pad} {maxY - minY + 2 * pad}";
+        _isoX = (minX + maxX) / 2;
+        _isoY = (minY + maxY) / 2;
+    }
+
+    private static string PolylinePoints(IReadOnlyList<Aran.Model.PointMm> pts) =>
+        string.Join(" ", System.Linq.Enumerable.Select(pts, p => $"{p.X:0.#},{p.Y:0.#}"));
+
+    private static string PolygonPoints(IReadOnlyList<Aran.Model.PointMm> pts) =>
+        string.Join(" ", System.Linq.Enumerable.Select(pts, p => $"{p.X:0.#},{p.Y:0.#}"));
+
+    private static double MidX(IReadOnlyList<Aran.Model.PointMm> pts) =>
+        (pts[0].X + pts[pts.Count - 1].X) / 2;
+    private static double MidY(IReadOnlyList<Aran.Model.PointMm> pts) =>
+        (pts[0].Y + pts[pts.Count - 1].Y) / 2;
+    private static double CentX(IReadOnlyList<Aran.Model.PointMm> pts)
+    {
+        double s = 0; foreach (var p in pts) s += p.X; return s / pts.Count;
+    }
+    private static double CentY(IReadOnlyList<Aran.Model.PointMm> pts)
+    {
+        double s = 0; foreach (var p in pts) s += p.Y; return s / pts.Count;
+    }
+
+    private void Confirm()
+    {
+        Session.ConfirmedModel = Session.ExtractionResult?.Model;
+        Session.CanvasConfirmed = true;
+        Nav.NavigateTo("/input");
+    }
+
+    private static string DiagClass(Aran.Extraction.DiagnosticSeverity s) => s switch
+    {
+        Aran.Extraction.DiagnosticSeverity.Warning => "text-warning",
+        Aran.Extraction.DiagnosticSeverity.Error   => "text-danger",
+        _                                           => "text-muted",
+    };
+}

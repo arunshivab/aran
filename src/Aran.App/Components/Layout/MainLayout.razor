@@ -1,0 +1,31 @@
+@inherits LayoutComponentBase
+
+<div class="aran-shell d-flex flex-column min-vh-100">
+    <nav class="navbar navbar-dark bg-dark px-3">
+        <a class="navbar-brand fw-bold" href="/">&#x26A1; Aran</a>
+        <span class="text-white-50 small">Radiotherapy Shielding Calculator</span>
+    </nav>
+
+    <div class="container-fluid flex-grow-1 py-3">
+        <div class="row">
+            <div class="col-lg-2 col-md-3 mb-3">
+                <div class="list-group list-group-flush small">
+                    <a href="/"        class="list-group-item list-group-item-action">① Upload</a>
+                    <a href="/canvas"  class="list-group-item list-group-item-action">② Canvas</a>
+                    <a href="/input"   class="list-group-item list-group-item-action">③ Input</a>
+                    <a href="/run"     class="list-group-item list-group-item-action">④ Run</a>
+                    <a href="/download"class="list-group-item list-group-item-action">⑤ Download</a>
+                </div>
+            </div>
+            <main class="col-lg-10 col-md-9">
+                @Body
+            </main>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white-50 text-center small py-2">
+        Aran — proprietary radiotherapy shielding software
+    </footer>
+</div>
+
+<ReconnectModal />

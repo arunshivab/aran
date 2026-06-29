@@ -1,0 +1,129 @@
+@page "/download"
+@rendermode InteractiveServer
+@inject AppSession Session
+@inject ReportBuilder Reports
+@inject IJSRuntime JS
+
+<PageTitle>Download — Aran</PageTitle>
+
+<h2>⑤ Download Reports</h2>
+
+@if (!Session.RunCompleted)
+{
+    <div class="alert alert-warning">Run step not completed. <a href="/run">Go to Run ›</a></div>
+    return;
+}
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+@if (!_generated)
+{
+    <button class="btn btn-primary mb-3" @onclick="Generate" disabled="@_generating">
+        @if (_generating)
+        {
+            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+            <span>Generating PDFs…</span>
+        }
+        else
+        {
+            <span>&#128196; Generate reports</span>
+        }
+    </button>
+}
+else
+{
+    <div class="list-group mb-3" style="max-width:480px">
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+                <strong>NCRP 151 Report</strong>
+                <div class="small text-muted">@SizeLabel(Session.NcrpReportBytes)</div>
+            </div>
+            <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadPdf(Session.NcrpReportBytes, NcrpFileName)"
+                    disabled="@(Session.NcrpReportBytes is null)">
+                &#11123; Download
+            </button>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+                <strong>AERB LINAC Report</strong>
+                <div class="small text-muted">@SizeLabel(Session.AerbLinacReportBytes)</div>
+            </div>
+            <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadPdf(Session.AerbLinacReportBytes, AerbLinacFileName)"
+                    disabled="@(Session.AerbLinacReportBytes is null)">
+                &#11123; Download
+            </button>
+        </div>
+        @if (Session.AerbNmReportBytes is not null)
+        {
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>AERB NM Report</strong>
+                    <div class="small text-muted">@SizeLabel(Session.AerbNmReportBytes)</div>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadPdf(Session.AerbNmReportBytes, AerbNmFileName)">
+                    &#11123; Download
+                </button>
+            </div>
+        }
+    </div>
+
+    <div class="d-flex gap-2">
+        <a href="/run" class="btn btn-outline-secondary">‹ Back</a>
+        <button class="btn btn-outline-danger" @onclick="Restart">&#8635; New calculation</button>
+    </div>
+}
+
+@code {
+    private bool _generating;
+    private bool _generated;
+    private string? _error;
+
+    private string NcrpFileName => SafeFileName("NCRP151");
+    private string AerbLinacFileName => SafeFileName("AERB_LINAC");
+    private string AerbNmFileName => SafeFileName("AERB_NM");
+
+    private string SafeFileName(string tag) =>
+        System.Text.RegularExpressions.Regex.Replace(
+            Session.FacilityName + "_" + tag + "_" +
+            Session.PreparedDate.ToString("yyyyMMdd") + ".pdf",
+            @"[^\w\-.]", "_");
+
+    private static string SizeLabel(byte[]? b) =>
+        b is null ? "not generated" : $"{b.Length / 1024} KB";
+
+    private async Task Generate()
+    {
+        _generating = true;
+        _error = null;
+        try
+        {
+            await Task.Run(() => Reports.BuildLinacReports(Session));
+            _generated = true;
+        }
+        catch (Exception ex)
+        {
+            _error = "Report generation failed: " + ex.Message;
+        }
+        finally
+        {
+            _generating = false;
+        }
+    }
+
+    private async Task DownloadPdf(byte[]? pdf, string fileName)
+    {
+        if (pdf is null) return;
+        string base64 = Convert.ToBase64String(pdf);
+        await JS.InvokeVoidAsync("downloadBase64", fileName, "application/pdf", base64);
+    }
+
+    private void Restart()
+    {
+        Session.Reset();
+        _generated = false;
+        _error = null;
+    }
+}
