@@ -124,6 +124,46 @@
                         Session.MazeRun.A0M2 = mg.A0M2;
                         Session.MazeRun.A1M2 = mg.A1M2;
                         Session.MazeRun.AzM2 = mg.AzM2;
+
+                        // Merge section heights with the plan widths to replace the former
+                        // hardcoded ceiling height. Areas are real-but-coarse candidates
+                        // (extracted width × real section height), confirmed on the canvas.
+                        if (Session.SectionPdfBytes is not null)
+                        {
+                            try
+                            {
+                                using MemoryStream sms = new MemoryStream(Session.SectionPdfBytes);
+                                using Chuvadi.Pdf.Documents.PdfDocument sdoc =
+                                    Chuvadi.Pdf.Documents.PdfDocument.Open(sms);
+                                Aran.Extraction.SectionGeometry section =
+                                    new Aran.Extraction.SectionExtractor().Extract(sdoc, 0);
+                                double mazeHeightM = section.MazeHeightMm.HasValue
+                                    ? section.MazeHeightMm.Value / 1000.0 : 0.0;
+                                double vaultHeightM = section.VaultInternalHeightMm.HasValue
+                                    ? section.VaultInternalHeightMm.Value / 1000.0 : 0.0;
+                                double vaultWidthM = mg.VaultWidthMm / 1000.0;
+                                double mazeWidthM = mg.MazeWidthMm / 1000.0;
+                                if (mazeHeightM > 0.0 && mazeWidthM > 0.0)
+                                {
+                                    Session.MazeRun.AzM2 = mazeWidthM * mazeHeightM;
+                                    Session.MazeRun.S0M2 = mazeWidthM * mazeHeightM;
+                                    Session.MazeRun.S1M2 = mazeWidthM * mazeHeightM;
+                                    Session.MazeRun.A1M2 = vaultWidthM * mazeHeightM;
+                                }
+
+                                if (vaultHeightM > 0.0 && vaultWidthM > 0.0)
+                                {
+                                    double roomL = vaultWidthM;
+                                    double roomW = vaultWidthM;
+                                    Session.MazeRun.RoomSurfaceM2 =
+                                        2.0 * ((roomL * roomW) + (roomL * vaultHeightM) + (roomW * vaultHeightM));
+                                }
+                            }
+                            catch
+                            {
+                                // Section parse failed; keep form defaults for canvas confirmation.
+                            }
+                        }
                     }
                 }
             });

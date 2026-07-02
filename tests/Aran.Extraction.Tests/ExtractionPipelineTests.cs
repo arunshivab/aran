@@ -24,8 +24,8 @@ public sealed class ExtractionPipelineTests
             "Wall reconstruction",
             "Room detection",
             "Material classification",
-            "Dimension association",
-            "Source detection",
+            "Room labelling",
+            "Source & maze",
             "Assemble");
     }
 }

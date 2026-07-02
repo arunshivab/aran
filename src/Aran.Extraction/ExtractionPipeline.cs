@@ -31,8 +31,8 @@ public sealed class ExtractionPipeline
             new WallReconstructionStage(),
             new RoomDetectionStage(),
             new MaterialClassificationStage(),
-            new DimensionAssociationStage(),
-            new SourceDetectionStage(),
+            new RoomLabellingStage(),
+            new SourceAndMazeStage(),
             new AssembleStage(),
         };
         return new ExtractionPipeline(stages);
