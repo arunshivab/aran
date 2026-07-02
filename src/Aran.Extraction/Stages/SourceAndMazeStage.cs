@@ -25,10 +25,10 @@ namespace Aran.Extraction.Stages;
 /// When critical geometry cannot be resolved, the stage reports a Warning and emits
 /// no MazeGeometry rather than producing unreliable values.
 /// </summary>
-public sealed class SourceDetectionStage : IExtractionStage
+public sealed class SourceAndMazeStage : IExtractionStage
 {
     /// <inheritdoc />
-    public string Name => "Source detection";
+    public string Name => "Source & maze";
 
     /// <inheritdoc />
     public void Execute(ExtractionContext context)
@@ -140,45 +140,94 @@ public sealed class SourceDetectionStage : IExtractionStage
         double dlRaw = Distance(isoRaw.Value, outerDoor);
         double dlMm = dlRaw * mmpu;
 
-        // Areas: A0 primary beam area at wall G (0.5 m² typical), A1 wall G visible area
-        // Az inner maze cross-section opening, S1 maze cross-section
+        // Plan widths (mm). Height-dependent areas (A1/Az/S1) are NOT fabricated here: the
+        // section drawing supplies the height and the orchestration merge multiplies
+        // width × section-height (see SectionExtractor and the Upload merge). A0 (primary
+        // beam area) is a field-size value set/confirmed downstream. This removes the former
+        // hardcoded 3000 mm ceiling height and 0.5 m² A0.
         double vaultWidthMm = EstimateMazeWidth(vault.Loop.Points) * mmpu;
         double mazeWidthMm = mazeWidthRaw * mmpu;
-        double vaultHeightMm = 3000.0; // typical ceiling height, mm
+        diags.Add("Vault width = " + Fmt(vaultWidthMm) + " mm; maze width = " + Fmt(mazeWidthMm)
+            + " mm. Height-dependent areas pending the section merge.");
 
-        double a0M2 = 0.5;
-        double a1M2 = (vaultWidthMm / 1000.0) * (vaultHeightMm / 1000.0);
-        double azM2 = (mazeWidthMm / 1000.0) * (vaultHeightMm / 1000.0);
-        double s1M2 = azM2;
+        // Gantry side (page space): densest machine cluster around the isocentre gives the
+        // isocentre-to-gantry (head) direction; patient-left = 90° CCW (plan view), which the
+        // physicist confirms/flips on the canvas.
+        GantryFrame gantry = DetectGantry(context.Segments, isoRaw.Value, diags);
+
+        double a0M2 = 0.0;
+        double a1M2 = 0.0;
+        double azM2 = 0.0;
+        double s1M2 = 0.0;
 
         ExtractedMazeGeometry geo = new ExtractedMazeGeometry(
             vault, maze,
             isoRaw.Value, innerDoor, outerDoor,
             dhMm, dzMm, drMm, dsecMm, dzzMm, dscaMm, dlMm,
-            a0M2, a1M2, azM2, s1M2, diags);
+            a0M2, a1M2, azM2, s1M2,
+            vaultWidthMm, mazeWidthMm,
+            gantry.DirX, gantry.DirY, gantry.LeftX, gantry.LeftY, gantry.Confident,
+            diags);
 
         context.MazeGeometry = geo;
         context.Report(
             DiagnosticSeverity.Info,
             Name,
-            "Maze geometry extracted: dh=" + Fmt(dhMm) + " mm, dz=" + Fmt(dzMm) + " mm, dr=" + Fmt(drMm) + " mm.");
+            "Maze geometry extracted: dh=" + Fmt(dhMm) + " mm, dz=" + Fmt(dzMm) + " mm, dr=" + Fmt(drMm)
+                + " mm; gantry confident=" + gantry.Confident + ".");
     }
+
+    private static readonly string[] IsoLabelVariants =
+    {
+        "ISOCENTER",
+        "ISOCENTRE",
+        "ISO",
+        "BEAMCENTER",
+        "BEAMCENTRE",
+    };
 
     private static RawPoint? FindIsocentre(
         IReadOnlyList<TextRun> texts, LayerClassification? classification)
     {
         foreach (TextRun t in texts)
         {
-            if (t.Unicode is not null &&
-                t.Unicode.Contains("ISO", StringComparison.OrdinalIgnoreCase))
+            string normalised = Normalise(t.Unicode);
+            if (normalised.Length == 0)
             {
-                double cx = t.BoundingBox.X + (t.BoundingBox.Width / 2.0);
-                double cy = t.BoundingBox.Y + (t.BoundingBox.Height / 2.0);
-                return new RawPoint(cx, cy);
+                continue;
+            }
+
+            foreach (string variant in IsoLabelVariants)
+            {
+                if (normalised.Contains(variant, StringComparison.Ordinal))
+                {
+                    double cx = t.BoundingBox.X + (t.BoundingBox.Width / 2.0);
+                    double cy = t.BoundingBox.Y + (t.BoundingBox.Height / 2.0);
+                    return new RawPoint(cx, cy);
+                }
             }
         }
 
         return null;
+    }
+
+    private static string Normalise(string? unicode)
+    {
+        if (unicode is null)
+        {
+            return string.Empty;
+        }
+
+        System.Text.StringBuilder builder = new System.Text.StringBuilder(unicode.Length);
+        foreach (char c in unicode)
+        {
+            if (!char.IsWhiteSpace(c))
+            {
+                builder.Append(char.ToUpperInvariant(c));
+            }
+        }
+
+        return builder.ToString();
     }
 
     private static RoomPolygon? FindContaining(
@@ -396,6 +445,62 @@ public sealed class SourceDetectionStage : IExtractionStage
         return inside;
     }
 
+    private static GantryFrame DetectGantry(
+        IReadOnlyList<LineSegment> segments, RawPoint isoPage, List<string> diags)
+    {
+        // Bucket nearby segment midpoints (page space) into eight octants around the
+        // isocentre; the densest octant points toward the machine/gantry cluster.
+        double[] counts = new double[8];
+        foreach (LineSegment s in segments)
+        {
+            double mx = (s.X0 + s.X1) / 2.0;
+            double my = (s.Y0 + s.Y1) / 2.0;
+            double dx = mx - isoPage.X;
+            double dy = my - isoPage.Y;
+            double dist = Math.Sqrt((dx * dx) + (dy * dy));
+            if (dist < 15.0 || dist > 160.0)
+            {
+                continue;
+            }
+
+            double angle = Math.Atan2(dy, dx) + Math.PI;
+            int octant = (int)((angle / (2.0 * Math.PI)) * 8.0) % 8;
+            counts[octant] += 1.0;
+        }
+
+        int best = 0;
+        double bestCount = -1.0;
+        double total = 0.0;
+        for (int i = 0; i < 8; i++)
+        {
+            total += counts[i];
+            if (counts[i] > bestCount)
+            {
+                bestCount = counts[i];
+                best = i;
+            }
+        }
+
+        if (total < 8.0 || bestCount <= 0.0)
+        {
+            diags.Add("Gantry cluster not found near isocentre; L/R defaulted — confirm on canvas.");
+            return new GantryFrame(1.0, 0.0, 0.0, -1.0, false);
+        }
+
+        double centreAngle = (((best + 0.5) / 8.0) * (2.0 * Math.PI)) - Math.PI;
+        double gx = Math.Cos(centreAngle);
+        double gy = Math.Sin(centreAngle);
+        double lx = -gy;
+        double ly = gx;
+        bool confident = bestCount >= (total * 0.4);
+        diags.Add("Gantry (head) direction page=(" + Fmt(gx) + ", " + Fmt(gy) + "); patient-left page=("
+            + Fmt(lx) + ", " + Fmt(ly) + "); confident=" + confident + " — confirm handedness on canvas.");
+        return new GantryFrame(gx, gy, lx, ly, confident);
+    }
+
     private static string Fmt(double v) =>
         v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private readonly record struct GantryFrame(
+        double DirX, double DirY, double LeftX, double LeftY, bool Confident);
 }

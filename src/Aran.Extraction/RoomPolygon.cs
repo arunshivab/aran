@@ -36,6 +36,13 @@ public sealed record RoomPolygon(
 /// <param name="A1M2">Wall G area visible from door (m²).</param>
 /// <param name="AzM2">Inner maze opening cross-section area (m²).</param>
 /// <param name="MazeCrossM2">Maze cross-sectional area S1 (m²).</param>
+/// <param name="VaultWidthMm">Plan width of the vault lateral span (mm); the merge multiplies by the section height.</param>
+/// <param name="MazeWidthMm">Plan width of the maze throat (mm); the merge multiplies by the section height.</param>
+/// <param name="GantryDirXPage">X of the isocentre-to-gantry unit direction, page space.</param>
+/// <param name="GantryDirYPage">Y of the isocentre-to-gantry unit direction, page space.</param>
+/// <param name="PatientLeftDirXPage">X of the patient-left unit direction (90° CCW of gantry), page space.</param>
+/// <param name="PatientLeftDirYPage">Y of the patient-left unit direction (90° CCW of gantry), page space.</param>
+/// <param name="GantryConfident">True when the gantry side came from a dense machine cluster; false means confirm on the canvas.</param>
 /// <param name="Diagnostics">Any caveats from the tracer.</param>
 public sealed record ExtractedMazeGeometry(
     RoomPolygon VaultPolygon,
@@ -54,4 +61,11 @@ public sealed record ExtractedMazeGeometry(
     double A1M2,
     double AzM2,
     double MazeCrossM2,
+    double VaultWidthMm,
+    double MazeWidthMm,
+    double GantryDirXPage,
+    double GantryDirYPage,
+    double PatientLeftDirXPage,
+    double PatientLeftDirYPage,
+    bool GantryConfident,
     IReadOnlyList<string> Diagnostics);

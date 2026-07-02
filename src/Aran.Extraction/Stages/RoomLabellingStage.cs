@@ -21,7 +21,7 @@ namespace Aran.Extraction.Stages;
 /// Labelled rooms are emitted into <see cref="ModelBuilder"/> as
 /// <see cref="Room"/> objects.
 /// </summary>
-public sealed class DimensionAssociationStage : IExtractionStage
+public sealed class RoomLabellingStage : IExtractionStage
 {
     // Number of largest polygons to skip during PiP (building boundary + main outline).
     private const int SkipLargest = 2;
@@ -62,7 +62,7 @@ public sealed class DimensionAssociationStage : IExtractionStage
         };
 
     /// <inheritdoc />
-    public string Name => "Dimension association";
+    public string Name => "Room labelling";
 
     /// <inheritdoc />
     public void Execute(ExtractionContext context)
